@@ -6,4 +6,4 @@ Jogo de xadrez no navegador, com níveis de dificuldade.
 - Regras e validação de jogadas: [chess.js](https://github.com/jhlywa/chess.js)
 
 ## Como jogar
-Abra o `index.html` no navegador (precisa de internet para carregar as bibliotecas).
+Abra o `index.html` no navegador. Funciona offline: as bibliotecas estão na pasta `lib/`.
