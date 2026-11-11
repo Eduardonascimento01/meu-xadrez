@@ -67,6 +67,56 @@
             .area-capturadas img { width: 24px; height: 24px; }
             #status-bar { margin: 12px auto; font-size: 1em; }
         }
+        /* ---------- Mensagem de fim de jogo (usada pelo vitoria.js) ----------
+           Cópia da seção de ferramentas/base-jogos.css com as cores fixas,
+           porque o xadrez não usa o base.css. */
+        .fim-fundo {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 1000;
+        }
+        .fim-fundo.mostrar { display: flex; animation: fim-aparece 0.25s ease-out; }
+        .fim-caixa {
+            background: #FFFFFF;
+            border-radius: 22px;
+            padding: 26px 24px 22px;
+            width: min(92vw, 360px);
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            border-top: 6px solid #1E3A8A;
+            animation: fim-pula 0.35s ease-out;
+        }
+        .fim-vitoria .fim-caixa { border-top-color: #F59E0B; }
+        .fim-derrota .fim-caixa { border-top-color: #5A6170; }
+        .fim-emoji { font-size: 54px; line-height: 1; }
+        .fim-titulo { margin: 10px 0 6px; font-size: 26px; color: #1E3A8A; }
+        .fim-vitoria .fim-titulo { color: #B45309; }
+        .fim-mensagem { margin: 0 0 18px; color: #000000; font-size: 16px; line-height: 1.45; }
+        .fim-botoes { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        /* Botões da caixa (o "button" verde do xadrez não serve aqui) */
+        .fim-botoes button { margin-top: 0; border-radius: 10px; font-weight: 600; font-family: inherit; }
+        .fim-botoes button[hidden] { display: none; }
+        .fim-botoes .btn-primario { background-color: #1E3A8A; color: #FFFFFF; }
+        .fim-botoes .btn-primario:hover { background-color: #2B4FB5; }
+        .fim-botoes .fim-fechar { background-color: #E5E7EB; color: #000000; }
+        .fim-botoes .fim-fechar:hover { background-color: #D1D5DB; }
+        .confete {
+            position: fixed;
+            top: -20px;
+            z-index: 1001;
+            pointer-events: none;
+            animation-name: confete-cai;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+        }
+        @keyframes confete-cai { to { transform: translateY(105vh) rotate(540deg); } }
+        @keyframes fim-aparece { from { opacity: 0; } }
+        @keyframes fim-pula { from { transform: scale(0.85); } } /* só cresce: se a animação travar, a caixa continua visível */
     </style>
 </head>
 <body>
@@ -124,6 +174,7 @@
     <script src="lib/jquery-3.7.1.min.js"></script>
     <script src="lib/chessboard-1.0.0.min.js"></script>
     <script src="lib/chess-0.10.3.min.js"></script>
+    <script src="vitoria.js"></script>
     
     <script>
         var game = new Chess();
@@ -264,11 +315,49 @@
                     infoText = 'FIM DE JOGO: Empate!';
                 }
                 jogoContabilizado = true; 
+                mostrarFimDeJogo();
             } else if (!game.game_over()) {
                 if (game.in_check()) infoText = 'AVISO: As ' + vez + ' estão em Xeque!';
             }
             
             $('#status-info').css('color', '#e74c3c').text(infoText);
+        }
+
+        // Caixa de fim de jogo (vitoria.js). Espera um pouco para a
+        // última jogada aparecer no tabuleiro antes da caixa.
+        function mostrarFimDeJogo() {
+            var lances = Math.ceil(game.history().length / 2);
+            var fen = game.fen();
+            var contraPC = $('#modo-jogo').val() !== 'humano';
+            var opcoes = { aoJogarDeNovo: reiniciarPartida };
+            if (game.in_checkmate()) {
+                // Quem está na vez levou o mate
+                var brancasVenceram = game.turn() === 'b';
+                if (contraPC) {
+                    // Contra o PC, o humano joga de brancas
+                    opcoes.tipo = brancasVenceram ? 'vitoria' : 'derrota';
+                    opcoes.titulo = brancasVenceram ? 'Xeque-mate! Você venceu!' : 'O PC deu xeque-mate';
+                    opcoes.mensagem = brancasVenceram
+                        ? 'Você derrotou o PC em ' + lances + ' lances. Mandou bem!'
+                        : 'O PC venceu em ' + lances + ' lances. Que tal uma revanche?';
+                } else {
+                    opcoes.tipo = 'vitoria';
+                    opcoes.titulo = brancasVenceram ? 'Vitória das Brancas!' : 'Vitória das Pretas!';
+                    opcoes.mensagem = 'Xeque-mate em ' + lances + ' lances. Boa partida!';
+                }
+            } else {
+                var motivo = 'Empate';
+                if (game.in_stalemate()) motivo = 'Afogamento: quem joga não tem lance legal';
+                else if (game.in_threefold_repetition()) motivo = 'A mesma posição se repetiu três vezes';
+                else if (game.insufficient_material()) motivo = 'Não sobrou material para dar mate';
+                else if (game.in_draw()) motivo = 'Regra dos 50 lances sem captura nem peão andando';
+                opcoes.tipo = 'empate';
+                opcoes.mensagem = motivo + (lances > 0 ? '. A partida teve ' + lances + ' lances.' : '.');
+            }
+            setTimeout(function() {
+                // Se reiniciaram a partida nesse meio tempo, não mostra
+                if (game.fen() === fen && game.game_over()) Vitoria.mostrar(opcoes);
+            }, 500);
         }
 
         function agendarBot() {
@@ -408,7 +497,7 @@
             agendarBot();
         });
 
-        $('#restartBtn').on('click', function() {
+        function reiniciarPartida() {
             game.reset();
             jogoContabilizado = false;
             capturadasPelasBrancas = [];
@@ -418,7 +507,8 @@
             casaSelecionada = null;
             inicializarTabuleiro();
             updateStatus();
-        });
+        }
+        $('#restartBtn').on('click', reiniciarPartida);
 
         // Mantém o tabuleiro do tamanho certo quando a janela muda (celular girando, iframe do hub)
         var resizeTimer = null;
